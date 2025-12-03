@@ -5,7 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Crypto Trader ao Vivo</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+  <!-- ESSAS DUAS LINHAS SÃO A NOVA BIBLIOTECA (Chart.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
 </head>
 <body>
   <div class="container">
@@ -13,10 +18,10 @@
 
     <div class="controls">
       <select id="symbol">
-        <option value="btcusdt">Bitcoin (BTC)</option>
-        <option value="ethusdt">Ethereum (ETH)</option>
-        <option value="bnbusdt">BNB</option>
-        <option value="solusdt">Solana (SOL)</option>
+        <option value="BTCUSDT">Bitcoin (BTC)</option>
+        <option value="ETHUSDT">Ethereum (ETH)</option>
+        <option value="BNBUSDT">BNB</option>
+        <option value="SOLUSDT">Solana (SOL)</option>
       </select>
 
       <input type="number" id="amount" placeholder="Valor em US$ (ex: 100)" min="10" step="10" />
@@ -25,7 +30,7 @@
       <button id="sell">SELL</button>
     </div>
 
-    <div id="chart"></div>
+    <canvas id="chart"></canvas>
 
     <div class="history">
       <h2>Histórico de Operações</h2>
