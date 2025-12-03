@@ -3,18 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>Crypto Trader ao Vivo</title>
+  <title>TKM3 TRADER PRO - Sinais Ao Vivo</title>
   <link rel="stylesheet" href="style.css" />
-
-  <!-- ESSAS DUAS LINHAS SÃO A NOVA BIBLIOTECA (Chart.js) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
-  <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+  <!-- Lightweight Charts (agora com versão fixa que NUNCA falha) -->
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>₿ Crypto Trader ao Vivo</h1>
+    <header>
+      <h1>TKM3 TRADER <span>PRO</span></h1>
+      <div class="price-live" id="priceLive">$0.00 <span id="change">0.00%</span></div>
+    </header>
 
     <div class="controls">
       <select id="symbol">
@@ -23,19 +22,19 @@
         <option value="BNBUSDT">BNB</option>
         <option value="SOLUSDT">Solana (SOL)</option>
       </select>
-
-      <input type="number" id="amount" placeholder="Valor em US$ (ex: 100)" min="10" step="10" />
-
+      <input type="number" id="amount" placeholder="Valor em $" value="100" />
       <button id="buy">BUY</button>
       <button id="sell">SELL</button>
     </div>
 
-    <canvas id="chart"></canvas>
+    <div id="chart"></div>
 
-    <div class="history">
-      <h2>Histórico de Operações</h2>
-      <ul id="trades"></ul>
-      <p id="balance">Saldo: $1000.00</p>
+    <div class="footer">
+      <div class="balance">Saldo Virtual: <span id="balance">$1,000.00</span></div>
+      <div class="trades">
+        <h3>Últimas Operações</h3>
+        <ul id="tradesList"></ul>
+      </div>
     </div>
   </div>
 
