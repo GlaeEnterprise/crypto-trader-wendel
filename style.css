@@ -15,7 +15,12 @@ select, input { background:#1e293b; color:white; }
 #buy { background:#00ff9d; color:black; font-weight:bold; cursor:pointer; }
 #sell { background:#ff006e; color:white; font-weight:bold; cursor:pointer; }
 
-#chart { height: 500px; background:#1e293b; border-radius:12px; margin-bottom:20px; }
+#chart {
+  height: 500px !important;
+  background:#1e293b;
+  border-radius:12px;
+  margin-bottom:20px;
+}
 
 .history { background:#1e293b; padding:20px; border-radius:12px; }
 #trades { list-style:none; }
