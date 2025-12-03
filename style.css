@@ -32,17 +32,20 @@ body {
 }
 #buy { background:#00ff9d; color:#000; }
 #sell { background:#ff3366; color:#fff; }
+#toggleIndicators { background:#2a2e39; color:#d1d4dc; }
 #buy:hover { background:#00cc7a; transform:scale(1.05); }
 #sell:hover { background:#cc0033; transform:scale(1.05); }
+#toggleIndicators:hover { background:#363a45; }
 
 #chart {
   flex:1; background:#0e0e0e; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.6); 
   position: relative;
 }
 #chart .indicator-panel {
-  position: absolute; bottom: 0; left: 0; right: 0; height: 120px; background: rgba(14,14,14,0.9); border-top: 1px solid #2a2e39; padding: 10px; display: flex; gap: 20px;
+  position: absolute; bottom: 0; left: 0; right: 0; height: 120px; background: rgba(14,14,14,0.9); border-top: 1px solid #2a2e39; padding: 10px; display: flex; gap: 20px; opacity: 0; transition: opacity 0.3s;
 }
-#rsi-line, #macd-line, #bb-upper { height: 80px; width: 30%; background: #1a1a1a; border-radius: 4px; }
+#chart .indicator-panel.active { opacity: 1; }
+#rsi-line, #macd-line, #bb-upper, #stoch-line { height: 80px; width: 23%; background: #1a1a1a; border-radius: 4px; }
 
 .tv-footer {
   display:flex; gap:20px; padding:16px 20px; background:#0e0e0e; flex-wrap:wrap;
@@ -53,12 +56,12 @@ body {
 
 .panel-title { color:#00c4ff; font-weight:700; margin-bottom:12px; }
 #trades { list-style:none; max-height:200px; overflow-y:auto; }
-#trades li { padding:8px 0; border-bottom:1px solid #2a2e39; display:flex; justify-content:space-between; font-size:0.95rem; }
-#trades li .timer { font-size:0.8rem; color:#888; }
+#trades li { padding:8px 0; border-bottom:1px solid #2a2e39; display:flex; justify-content:space-between; font-size:0.95rem; flex-direction: column; }
+#trades li .timer { font-size:0.8rem; color:#888; margin-top: 2px; }
 .pnl-positive { color:#00ff9d !important; }
 .pnl-negative { color:#ff3366 !important; }
 .total-pnl { margin-top:12px; font-weight:900; font-size:1.1rem; }
 .total-pnl span { color:#00ff9d; }
 
-/* Mobile como na screenshot */
-@media (max-width: 768px) { .tv-header, .tv-controls, .tv-footer { padding:8px; } #price { font-size:2rem; } }
+/* Mobile como screenshot */
+@media (max-width: 768px) { .tv-header, .tv-controls, .tv-footer { padding:8px; } #price { font-size:2rem; } .tv-controls { gap:8px; } }
