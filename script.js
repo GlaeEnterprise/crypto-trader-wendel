@@ -1,128 +1,139 @@
-const chartElement = document.getElementById('chart');
-const chart = LightweightCharts.createChart(chartElement, {
-  width: chartElement.clientWidth,
-  height: 500,
-  layout: { backgroundColor: '#1e293b', textColor: '#ddd' },
-  grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
-  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-  timeScale: { timeVisible: true, secondsVisible: true },
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+
+let chart = new Chart(ctx, {
+  type: 'candlestick',
+  data: {
+    datasets: [
+      {
+        label: 'Preço',
+        data: [],
+        borderColor: '#00ff9d',
+      },
+      {
+        type: 'line',
+        label: 'SMA 5',
+        data: [],
+        borderColor: '#00ff9d',
+        borderWidth: 2,
+        fill: false,
+        tension: 0
+      },
+      {
+        type: 'line',
+        label: 'SMA 10',
+        data: [],
+        borderColor: '#ffaa00',
+        borderWidth: 2,
+        fill: false,
+        tension: 0
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { type: 'time', time: { unit: 'minute' } },
+      y: { beginAtZero: false }
+    }
+  }
 });
 
-const candlestickSeries = chart.addCandlestickSeries({
-  upColor: '#00ff9d', downColor: '#ff006e', borderVisible: false
-});
-
-const sma5Series = chart.addLineSeries({ color: '#00ff9d', lineWidth: 2 });
-const sma10Series = chart.addLineSeries({ color: '#ffaa00', lineWidth: 2 });
-
-let currentSymbol = 'btcusdt';
-let socket;
 let candles = [];
+let currentSymbol = 'BTCUSDT';
+let socket;
 let balance = 1000;
 let trades = [];
 
-// Conecta ao WebSocket da Binance (100% ao vivo)
-function connectWebSocket(symbol = 'btcusdt') {
-  if (socket) socket.close();
+// Carrega histórico
+async function loadData() {
+  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=1m&limit=100`);
+  const data = await res.json();
+  candles = data.map(d => ({
+    x: new Date(d[0]),
+    o: parseFloat(d[1]),
+    h: parseFloat(d[2]),
+    l: parseFloat(d[3]),
+    c: parseFloat(d[4])
+  }));
+  updateChart();
+}
 
-  const wsUrl = `wss://stream.binance.com:9443/ws/${symbol}@kline_1m`;
-  socket = new WebSocket(wsUrl);
+// WebSocket ao vivo
+function startWebSocket() {
+  if (socket) socket.close();
+  socket = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@kline_1m`);
 
   socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (!data.k) return;
-
-    const k = data.k;
-    if (!k.x) return; // só processa vela fechada
-
-    const candle = {
-      time: k.t / 1000,      // timestamp em segundos
-      open: parseFloat(k.o),
-      high: parseFloat(k.h),
-      low: parseFloat(k.l),
-      close: parseFloat(k.c)
+    const msg = JSON.parse(event.data);
+    if (!msg.k || !msg.k.x) return;
+    const k = msg.k;
+    const nova = {
+      x: new Date(k.t),
+      o: parseFloat(k.o),
+      h: parseFloat(k.h),
+      l: parseFloat(k.l),
+      c: parseFloat(k.c)
     };
 
-    candles.push(candle);
-    if (candles.length > 100) candles.shift(); // mantém só as últimas 100
-
-    candlestickSeries.setData(candles);
-
-    // Calcula e atualiza SMAs
-    updateSMAs();
+    const ultimo = candles[candles.length - 1];
+    if (ultimo && ultimo.x.getTime() === nova.x.getTime()) {
+      candles[candles.length - 1] = nova;
+    } else {
+      candles.push(nova);
+      if (candles.length > 100) candles.shift();
+    }
+    updateChart();
   };
 }
 
-// Calcula médias móveis
-function updateSMAs() {
-  if (candles.length < 10) return;
-  
-  const closes = candles.map(c => c.close);
-  
-  sma5Series.setData(candles.map((c,i) => ({
-    time: c.time,
-    value: i >= 4 ? closes.slice(i-4, i+1).reduce((a,b)=>a+b)/5 : null
-  })).filter(d => d.value !== null));
+function updateChart() {
+  chart.data.datasets[0].data = candles;
 
-  sma10Series.setData(candles.map((c,i) => ({
-    time: c.time,
-    value: i >= 9 ? closes.slice(i-9, i+1).reduce((a,b)=>a+b)/10 : null
-  })).filter(d => d.value !== null));
+  const closes = candles.map(c => c.c);
+  const sma5 = [], sma10 = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i >= 4) sma5.push({ x: candles[i].x, y: closes.slice(i-4, i+1).reduce((a,b)=>a+b)/5 });
+    if (i >= 9) sma10.push({ x: candles[i].x, y: closes.slice(i-9, i+1).reduce((a,b)=>a+b)/10 });
+  }
+  chart.data.datasets[1].data = sma5;
+  chart.data.datasets[2].data = sma10;
+  chart.update('quiet');
 }
 
-// Botões Buy e Sell
-document.getElementById('buy').onclick = () => makeTrade('buy');
-document.getElementById('sell').onclick = () => makeTrade('sell');
+// Buy / Sell
+document.getElementById('buy').onclick = () => trade('buy');
+document.getElementById('sell').onclick = () => trade('sell');
 
-function makeTrade(type) {
-  const amount = parseFloat(document.getElementById('amount').value);
-  if (!amount || amount < 10) return alert("Digite um valor válido (mínimo $10)");
+function trade(tipo) {
+  const valor = parseFloat(document.getElementById('amount').value);
+  if (!valor || valor < 10) return alert('Digite pelo menos $10');
+  if (candles.length === 0) return alert('Aguarde carregar...');
 
-  const price = candles[candles.length-1]?.close || 0;
-  const qty = amount / price;
+  const preco = candles[candles.length-1].c;
+  const qty = (valor / preco).toFixed(6);
+  balance += tipo === 'buy' ? -valor : valor;
 
-  balance += type === 'buy' ? -amount : +amount;
-
-  trades.push({
-    type: type.toUpperCase(),
-    symbol: currentSymbol.toUpperCase(),
-    price,
-    qty: qty.toFixed(6),
-    total: amount,
-    time: new Date().toLocaleString()
-  });
-
-  updateHistory();
+  trades.push({ tipo: tipo.toUpperCase(), qty, preco: preco.toFixed(2), valor, time: new Date().toLocaleString() });
   document.getElementById('balance').textContent = `Saldo: $${balance.toFixed(2)}`;
+  updateTrades();
 }
 
-// Atualiza histórico
-function updateHistory() {
-  const list = document.getElementById('trades');
-  list.innerHTML = '';
-  trades.slice(-10).reverse().forEach(t => {
-    const li = document.createElement('li');
-    li.style.color = t.type === 'BUY' ? '#00ff9d' : '#ff006e';
-    li.innerHTML = `<strong>${t.type}</strong> ${t.qty} ${t.symbol.replace('USDT','')} a $${t.price.toFixed(2)} → $${t.total}`;
-    list.appendChild(li);
-  });
+function updateTrades() {
+  document.getElementById('trades').innerHTML = trades.slice(-10).reverse().map(t => 
+    `<li style="color:${t.tipo==='BUY'?'#00ff9d':'#ff006e'}"><strong>${t.tipo}</strong> ${qty} ${currentSymbol.replace('USDT','')} @ $${t.preco}</li>`
+  ).join('');
 }
 
-// Troca de cripto
+// Troca de moeda
 document.getElementById('symbol').onchange = (e) => {
   currentSymbol = e.target.value;
   candles = [];
-  candlestickSeries.setData([]);
-  sma5Series.setData([]);
-  sma10Series.setData([]);
-  connectWebSocket(currentSymbol);
+  loadData();
+  startWebSocket();
 };
 
 // Inicia tudo
-connectWebSocket();
-document.getElementById('balance').textContent = `Saldo: $${balance.toFixed(2)}`;
-
-// Resize chart on window resize
-window.addEventListener('resize', () => {
-  chart.applyOptions({ width: chartElement.clientWidth });
-});
+loadData();
+startWebSocket();
