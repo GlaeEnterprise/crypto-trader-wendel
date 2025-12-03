@@ -5,29 +5,9 @@ let chart = new Chart(ctx, {
   type: 'candlestick',
   data: {
     datasets: [
-      {
-        label: 'Preço',
-        data: [],
-        borderColor: '#00ff9d',
-      },
-      {
-        type: 'line',
-        label: 'SMA 5',
-        data: [],
-        borderColor: '#00ff9d',
-        borderWidth: 2,
-        fill: false,
-        tension: 0
-      },
-      {
-        type: 'line',
-        label: 'SMA 10',
-        data: [],
-        borderColor: '#ffaa00',
-        borderWidth: 2,
-        fill: false,
-        tension: 0
-      }
+      { label: 'Preço', data: [] },
+      { type: 'line', label: 'SMA 5', data: [], borderColor: '#00ff9d', borderWidth: 2, fill: false },
+      { type: 'line', label: 'SMA 10', data: [], borderColor: '#ffaa00', borderWidth: 2, fill: false }
     ]
   },
   options: {
@@ -46,12 +26,12 @@ let socket;
 let balance = 1000;
 let trades = [];
 
-// Carrega histórico
+// HISTÓRICO
 async function loadData() {
   const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=1m&limit=100`);
   const data = await res.json();
   candles = data.map(d => ({
-    x: new Date(d[0]),
+    x: d[0],                 // ← CORRIGIDO (número, não Date)
     o: parseFloat(d[1]),
     h: parseFloat(d[2]),
     l: parseFloat(d[3]),
@@ -60,7 +40,7 @@ async function loadData() {
   updateChart();
 }
 
-// WebSocket ao vivo
+// WEBSOCKET AO VIVO
 function startWebSocket() {
   if (socket) socket.close();
   socket = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@kline_1m`);
@@ -70,7 +50,7 @@ function startWebSocket() {
     if (!msg.k || !msg.k.x) return;
     const k = msg.k;
     const nova = {
-      x: new Date(k.t),
+      x: k.t,                  // ← CORRIGIDO (número, não Date)
       o: parseFloat(k.o),
       h: parseFloat(k.h),
       l: parseFloat(k.l),
@@ -78,7 +58,7 @@ function startWebSocket() {
     };
 
     const ultimo = candles[candles.length - 1];
-    if (ultimo && ultimo.x.getTime() === nova.x.getTime()) {
+    if (ultimo && ultimo.x === nova.x) {
       candles[candles.length - 1] = nova;
     } else {
       candles.push(nova);
@@ -102,31 +82,39 @@ function updateChart() {
   chart.update('quiet');
 }
 
-// Buy / Sell
+// BUY / SELL
 document.getElementById('buy').onclick = () => trade('buy');
 document.getElementById('sell').onclick = () => trade('sell');
 
 function trade(tipo) {
-  const valor = parseFloat(document.getElementById('amount').value);
-  if (!valor || valor < 10) return alert('Digite pelo menos $10');
+  const valor = parseFloat(document.getElementById('amount').value || 0);
+  if (valor < 10) return alert('Mínimo $10');
   if (candles.length === 0) return alert('Aguarde carregar...');
 
   const preco = candles[candles.length-1].c;
   const qty = (valor / preco).toFixed(6);
   balance += tipo === 'buy' ? -valor : valor;
 
-  trades.push({ tipo: tipo.toUpperCase(), qty, preco: preco.toFixed(2), valor, time: new Date().toLocaleString() });
+  trades.push({ 
+    tipo: tipo.toUpperCase(), 
+    qty, 
+    preco: preco.toFixed(2), 
+    valor, 
+    time: new Date().toLocaleTimeString() 
+  });
   document.getElementById('balance').textContent = `Saldo: $${balance.toFixed(2)}`;
   updateTrades();
 }
 
 function updateTrades() {
   document.getElementById('trades').innerHTML = trades.slice(-10).reverse().map(t => 
-    `<li style="color:${t.tipo==='BUY'?'#00ff9d':'#ff006e'}"><strong>${t.tipo}</strong> ${qty} ${currentSymbol.replace('USDT','')} @ $${t.preco}</li>`
+    `<li style="color:${t.tipo==='BUY'?'#00ff9d':'#ff006e'}">
+      <strong>${t.tipo}</strong> ${t.qty} ${currentSymbol.replace('USDT','')} @ $${t.preco}
+    </li>`
   ).join('');
 }
 
-// Troca de moeda
+// TROCA DE MOEDA
 document.getElementById('symbol').onchange = (e) => {
   currentSymbol = e.target.value;
   candles = [];
@@ -134,6 +122,6 @@ document.getElementById('symbol').onchange = (e) => {
   startWebSocket();
 };
 
-// Inicia tudo
+// INICIA
 loadData();
 startWebSocket();
