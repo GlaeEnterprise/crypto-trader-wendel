@@ -17,17 +17,18 @@
       <div class="live-price">
         <div id="price">$0.00</div>
         <div id="change">0.00%</div>
-        <div id="countdown">00:59</div>
+        <div id="countdown">Vela fecha em 00:59</div>
       </div>
     </header>
 
-    <!-- Controles -->
+    <!-- Controles + Toggle IBOV -->
     <div class="tv-controls">
       <select id="symbol">
         <option value="BTCUSDT">BTC/USDT</option>
         <option value="ETHUSDT">ETH/USDT</option>
         <option value="BNBUSDT">BNB/USDT</option>
         <option value="SOLUSDT">SOL/USDT</option>
+        <option value="IBOV">Índice Bovespa (IBOV)</option>
       </select>
       <input type="number" id="amount" placeholder="Valor em US$" value="100">
       <button id="buy">BUY ➜</button>
@@ -37,16 +38,16 @@
     <!-- Gráfico -->
     <div id="chart"></div>
 
-    <!-- Painel inferior (saldo + trades com P&L) -->
+    <!-- Painel inferior (saldo + trades com timers + P&L) -->
     <div class="tv-footer">
       <div class="balance-panel">
         <div>Saldo Virtual</div>
         <div id="balance">$1,000.00</div>
       </div>
       <div class="trades-panel">
-        <div class="panel-title">Últimas Operações</div>
+        <div class="panel-title">Últimas Operações (com Timers)</div>
         <ul id="trades"></ul>
-        <div class="total-pnl" id="totalPnl">P&L: <span>$0.00</span></div>
+        <div class="total-pnl" id="totalPnl">P&L Total: <span>$0.00</span></div>
       </div>
     </div>
   </div>
