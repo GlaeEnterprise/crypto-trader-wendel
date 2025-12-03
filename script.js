@@ -1,62 +1,67 @@
-const chartElement = document.getElementById('chart');
-const chart = LightweightCharts.createChart(chartElement, {
-  width: chartElement.clientWidth,
-  height: 580,
-  layout: { backgroundColor: '#0f1620', textColor: '#d1d4dc' },
-  grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
-  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-  timeScale: { borderColor: '#334155' },
+const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+  layout: { backgroundColor: '#0e0e0e', textColor: '#d1d4dc' },
+  grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
+  width: document.getElementById('chart').clientWidth,
+  height: document.getElementById('chart').clientHeight,
+  timeScale: { borderColor: '#2a2e39' },
 });
 
-const candleSeries = chart.addCandlestickSeries({
-  upColor: '#00ff9d', downColor: '#ff006e',
-  borderUpColor: '#00ff9d', borderDownColor: '#ff006e',
-  wickUpColor: '#00ff9d', wickDownColor: '#ff006e',
-});
-
+const candleSeries = chart.addCandlestickSeries({ upColor: '#00ff9d', downColor: '#ff3366', wickUpColor: '#00ff9d', wickDownColor: '#ff3366' });
 const sma5 = chart.addLineSeries({ color: '#00ff9d', lineWidth: 2 });
 const sma10 = chart.addLineSeries({ color: '#ffaa00', lineWidth: 2 });
 
 let symbol = 'BTCUSDT';
-let ws;
+let ws, klineWs;
 let candles = [];
 let balance = 1000;
 let trades = [];
+let entryPrice = null;
 
-// Sons profissionais
+// Sons
 const buySound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3');
-const sellSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-negative-answer-lose-2032.mp3');
+const sellSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-losing-2052.mp3');
 
-// Preço ao vivo
-function updatePrice(price) {
-  const prev = candles[candles.length-2]?.close || price;
-  const change = ((price - prev) / prev * 100).toFixed(2);
-  document.getElementById('priceLive').innerHTML = `$${price.toFixed(2)} <span style="color:${change>=0?'#00ff9d':'#ff006e'}">${change>=0?'↑':'↓'} ${Math.abs(change)}%</span>`;
+// Contador da vela atual
+let nextCandleTime = 0;
+function startCountdown() {
+  const interval = setInterval(() => {
+    const secondsLeft = Math.max(0, Math.floor((nextCandleTime - Date.now() / 1000)));
+    const m = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+    const s = String(secondsLeft % 60).padStart(2, '0');
+    document.getElementById('countdown').textContent = `${m}:${s}`;
+    if (secondsLeft <= 0) loadCandles();
+  }, 500);
 }
 
-// Carrega histórico
-async function load() {
+// Carrega histórico + define próxima vela
+async function loadCandles() {
   const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&limit=200`);
   const data = await res.json();
-  candles = data.map(d => ({
-    time: d[0] / 1000,
-    open: +d[1], high: +d[2], low: +d[3], close: +d[4]
-  }));
+  candles = data.map(d => ({ time: d[0]/1000, open: +d[1], high: +d[2], low: +d[3], close: +d[4] }));
   candleSeries.setData(candles);
   updateSMA();
-  updatePrice(candles[candles.length-1].close);
+  nextCandleTime = candles[candles.length-1].time + 60;
+  startCountdown();
 }
 
-// WebSocket ao vivo
-function connect() {
+// WebSocket ticker (preço ao vivo)
+function connectTicker() {
   if (ws) ws.close();
   ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
-  ws.onmessage = (e) => {
+  ws.onmessage = e => {
     const d = JSON.parse(e.data);
     const price = parseFloat(d.c);
-    updatePrice(price);
-    if (candles.length > 0) {
-      const last = candles[candles.length-1];
+    document.getElementById('price').textContent = `$${price.toFixed(2)}`;
+    
+    const prev = candles[candles.length-1]?.close || price;
+    const change = ((price - prev)/prev*100).toFixed(2);
+    const changeEl = document.getElementById('change');
+    changeEl.textContent = `${change >= 0 ? '+' : ''}${change}%`;
+    changeEl.style.color = change >= 0 ? '#00ff9d' : '#ff3366';
+
+    // Atualiza vela atual
+    const last = candles[candles.length-1];
+    if (last) {
       last.close = price;
       last.high = Math.max(last.high, price);
       last.low = Math.min(last.low, price);
@@ -66,41 +71,63 @@ function connect() {
   };
 }
 
+// SMA
 function updateSMA() {
   const closes = candles.map(c => c.close);
-  const s5 = closes.slice(-50).map((c,i,a) => i>=4 ? {time: candles[i+150].time, value: a.slice(i-4,i+1).reduce((x,y)=>x+y)/5} : null).filter(Boolean);
-  const s10 = closes.slice(-50).map((c,i,a) => i>=9 ? {time: candles[i+150].time, value: a.slice(i-9,i+1).reduce((x,y)=>x+y)/10} : null).filter(Boolean);
-  sma5.setData(s5);
-  sma10.setData(s10);
+  const len = closes.length;
+  const data5 = [], data10 = [];
+  for (let i = 0; i < len; i++) {
+    if (i >= 4) data5.push({ time: candles[i].time, value: closes.slice(i-4,i+1).reduce((a,b)=>a+b)/5 });
+    if (i >= 9) data10.push({ time: candles[i].time, value: closes.slice(i-9,i+1).reduce((a,b)=>a+b)/10 });
+  }
+  sma5.setData(data5);
+  sma10.setData(data10);
 }
 
-// Trade
+// Trade com P&L
 function trade(type) {
   const amount = parseFloat(document.getElementById('amount').value) || 100;
-  if (amount < 10) return alert("Mínimo $10");
   const price = candles[candles.length-1].close;
-  balance += type === 'buy' ? -amount : amount;
-  trades.push({type: type.toUpperCase(), qty: (amount/price).toFixed(6), price: price.toFixed(2), time: new Date().toLocaleTimeString()});
+  const qty = amount / price;
+
+  if (type === 'buy') {
+    entryPrice = price;
+    balance -= amount;
+  } else {
+    if (entryPrice) {
+      const pnl = (price - entryPrice) * qty;
+      balance += amount + pnl;
+    } else {
+      balance += amount;
+    }
+    entryPrice = null;
+  }
+
+  trades.push({ type: type.toUpperCase(), price, qty: qty.toFixed(6), pnl: type==='sell' ? (price - entryPrice)*qty : 0, time: new Date().toLocaleTimeString() });
+  updateTrades();
   document.getElementById('balance').textContent = `$${balance.toFixed(2)}`;
-  document.getElementById('tradesList').innerHTML = trades.slice(-8).reverse().map(t => 
-    `<li style="color:${t.type==='BUY'?'#00ff9d':'#ff006e'}"><strong>${t.type}</strong> ${t.qty} @ $${t.price}</li>`
-  ).join('');
-  (type === 'buy' ? buySound : sellSound).play();
+  (type==='buy' ? buySound : sellSound).play();
 }
 
+function updateTrades() {
+  const list = document.getElementById('trades');
+  list.innerHTML = trades.slice(-10).reverse().map(t => `
+    <li>
+      <span>${t.type} ${t.qty} @ $${t.price.toFixed(2)}</span>
+      ${t.type==='SELL' ? `<span class="${t.pnl>=0?'pnl-positive':'pnl-negative'}">P&L: $${t.pnl.toFixed(2)}</span>` : ''}
+    </li>
+  `).join('');
+  const totalPnl = trades.filter(t=>t.type==='SELL').reduce((s,t)=>s+t.pnl,0);
+  const pnlEl = document.getElementById('totalPnl');
+  pnlEl.innerHTML = `P&L Total: <span style="color:${totalPnl>=0?'#00ff9d':'#ff3366'}">$${totalPnl.toFixed(2)}</span>`;
+}
+
+// Eventos
 document.getElementById('buy').onclick = () => trade('buy');
 document.getElementById('sell').onclick = () => trade('sell');
-document.getElementById('symbol').onchange = (e) => {
-  symbol = e.target.value;
-  candles = [];
-  load();
-  connect();
-};
-
-// Responsivo
-window.addEventListener('resize', () => chart.applyOptions({ width: chartElement.clientWidth }));
+document.getElementById('symbol').onchange = e => { symbol = e.target.value; candles=[]; loadCandles(); connectTicker(); };
 
 // Inicia
-load();
-connect();
-document.body.onclick = () => {}, {once: true}; // Libera som
+loadCandles();
+connectTicker();
+window.addEventListener('resize', () => chart.applyOptions({ width: document.getElementById('chart').clientWidth, height: document.getElementById('chart').clientHeight }));
