@@ -1,173 +1,172 @@
 const canvas = document.getElementById('chart');
 const ctx = canvas.getContext('2d');
 
-// Sons
-const buySound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-coin-win-notification-1939.mp3');
-const sellSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3');
+// Sons que funcionam em celular e desktop
+const buySound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3');
+const sellSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-negative-answer-lose-2032.mp3');
 
-// Elemento pra mostrar preço atual grande
-const priceDisplay = document.createElement('div');
-priceDisplay.style.position = 'absolute';
-priceDisplay.style.top = '80px';
-priceDisplay.style.right = '20px';
-priceDisplay.style.fontSize = '32px';
-priceDisplay.style.fontWeight = 'bold';
-priceDisplay.style.color = '#00ff9d';
-priceDisplay.style.background = 'rgba(0,0,0,0.6)';
-priceDisplay.style.padding = '10px 20px';
-priceDisplay.style.borderRadius = '12px';
-priceDisplay.style.zIndex = '10';
+// Preço atual grande e bonito
+const priceBox = document.createElement('div');
+priceBox.style.cssText = `
+  position: absolute;
+  top: 70px; right: 20px;
+  font-size: 36px; font-weight: bold;
+  padding: 12px 24px;
+  border-radius: 16px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(10px);
+  border: 2px solid #333;
+  z-index: 100;
+  transition: all 0.3s;
+`;
 document.querySelector('.container').style.position = 'relative';
-document.querySelector('.container').appendChild(priceDisplay);
+document.querySelector('.container').appendChild(priceBox);
 
 let chart = new Chart(ctx, {
   type: 'candlestick',
   data: { datasets: [
-    { label: 'Preço', data: [] },
-    { type: 'line', label: 'SMA 5', data: [], borderColor: '#00ff9d', borderWidth: 2, fill: false },
-    { type: 'line', label: 'SMA 10', data: [], borderColor: '#ffaa00', borderWidth: 2, fill: false }
+    {
+      label: 'Preço',
+      data: [],
+      borderColor: 'rgba(0,255,150,1)',
+      backgroundColor: (context) => {
+        const index = context.dataIndex;
+        const value = context.dataset.data[index];
+        return value?.o < value?.c ? 'rgba(0,255,150,0.8)' : 'rgba(255,0,110,0.8)';
+      }
+    },
+    { type: 'line', label: 'SMA 5', data: [], borderColor: '#00ff9d', borderWidth: 3, fill: false, tension: 0.2 },
+    { type: 'line', label: 'SMA 10', data: [], borderColor: '#ffaa00', borderWidth: 3, fill: false, tension: 0.2 }
   ]},
   options: {
     responsive: true,
     maintainAspectRatio: false,
-    scales: { x: { type: 'time', time: { unit: 'minute' } } }
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { mode: 'index' } },
+    scales: {
+      x: { type: 'time', time: { unit: 'minute' }, grid: { color: '#334155' } },
+      y: { grid: { color: '#334155' } }
+    }
   }
 });
 
 let candles = [];
 let currentSymbol = 'BTCUSDT';
-let socket;
+let socketTicker, socketKline;
 let balance = 1000;
 let trades = [];
-let currentPrice = 0;
 
-// Atualiza preço grande na tela
-function updatePriceDisplay() {
-  if (currentPrice > 0) {
-    const change = candles.length > 1 ? ((currentPrice - candles[candles.length-2].c) / candles[candles.length-2].c * 100) : 0;
-    priceDisplay.style.color = change >= 0 ? '#00ff9d' : '#ff006e';
-    priceDisplay.textContent = `$${currentPrice.toFixed(2)} ${change.toFixed(2)}%`;
-  }
+// Atualiza preço grande
+function updatePrice(price) {
+  const change = candles.length > 1 ? ((price - candles[candles.length-2].c) / candles[candles.length-2].c * 100).toFixed(2) : 0;
+  priceBox.innerHTML = `
+    <div style="font-size:48px">$${price.toFixed(2)}</div>
+    <div style="font-size:20px; color:${change >= 0 ? '#00ff9d' : '#ff006e'}">
+      ${change >= 0 ? '↑' : '↓'} ${Math.abs(change)}%
+    </div>
+  `;
+  priceBox.style.borderColor = change >= 0 ? '#00ff9d' : '#ff006e';
 }
 
-// HISTÓRICO + PREÇO EM SEGUNDO A SEGUNDO
+// Carrega histórico
 async function loadData() {
   const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=1m&limit=100`);
   const data = await res.json();
-  candles = data.map(d => ({
-    x: d[0],
-    o: parseFloat(d[1]),
-    h: parseFloat(d[2]),
-    l: parseFloat(d[3]),
-    c: parseFloat(d[4])
-  }));
-  currentPrice = candles[candles.length-1].c;
-  updatePriceDisplay();
+  candles = data.map(d => ({ x: d[0], o: +d[1], h: +d[2], l: +d[3], c: +d[4] }));
   updateChart();
+  updatePrice(candles[candles.length-1].c);
 }
 
-// WEBSOCKET COM TICKER (atualiza preço a cada segundo!)
-function startTickerWebSocket() {
-  if (socket) socket.close();
-  socket = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@ticker`);
-
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    currentPrice = parseFloat(data.c);
-    updatePriceDisplay();
-
-    // Atualiza a última vela com preço em tempo real
+// Ticker em tempo real (segundo a segundo)
+function startTicker() {
+  if (socketTicker) socketTicker.close();
+  socketTicker = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@ticker`);
+  socketTicker.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    const price = parseFloat(data.c);
     if (candles.length > 0) {
-      const last = candles[candles.length - 1];
-      last.c = currentPrice;
-      last.h = Math.max(last.h, currentPrice);
-      last.l = Math.min(last.l, currentPrice);
+      const last = candles[candles.length-1];
+      last.c = price;
+      last.h = Math.max(last.h, price);
+      last.l = Math.min(last.l, price);
       updateChart();
+      updatePrice(price);
     }
   };
 }
 
-// WebSocket das velas de 1 minuto (mantém histórico)
-function startKlineWebSocket() {
-  const klineSocket = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@kline_1m`);
-  klineSocket.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    if (!msg.k || !msg.k.x) return;
+// Nova vela de 1 minuto
+function startKline() {
+  if (socketKline) socketKline.close();
+  socketKline = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@kline_1m`);
+  socketKline.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (!msg.k?.x) return;
     const k = msg.k;
-    const nova = { x: k.t, o: parseFloat(k.o), h: parseFloat(k.h), l: parseFloat(k.l), c: parseFloat(k.c) };
-    
-    const ultimo = candles[candles.length - 1];
+    const nova = { x: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c };
+    const ultimo = candles[candles.length-1];
     if (ultimo && ultimo.x === nova.x) {
-      candles[candles.length - 1] = nova;
+      candles[candles.length-1] = nova;
     } else {
       candles.push(nova);
       if (candles.length > 100) candles.shift();
     }
-    currentPrice = nova.c;
-    updatePriceDisplay();
     updateChart();
+    updatePrice(nova.c);
   };
 }
 
 function updateChart() {
   chart.data.datasets[0].data = candles;
   const closes = candles.map(c => c.c);
-  const sma5 = [], sma10 = [];
-  for (let i = 0; i < closes.length; i++) {
-    if (i >= 4) sma5.push({ x: candles[i].x, y: closes.slice(i-4, i+1).reduce((a,b)=>a+b)/5 });
-    if (i >= 9) sma10.push({ x: candles[i].x, y: closes.slice(i-9, i+1).reduce((a,b)=>a+b)/10 });
-  }
+  const sma5 = closes.slice(-100).map((_, i, arr) => i >= 4 ? { x: candles[i].x, y: arr.slice(i-4, i+1).reduce((a,b)=>a+b)/5 } : null).filter(Boolean);
+  const sma10 = closes.slice(-100).map((_, i, arr) => i >= 9 ? { x: candles[i].x, y: arr.slice(i-9, i+1).reduce((a,b)=>a+b)/10 } : null).filter(Boolean);
   chart.data.datasets[1].data = sma5;
   chart.data.datasets[2].data = sma10;
   chart.update('quiet');
 }
 
-// BUY / SELL COM SOM
-document.getElementById('buy').onclick = () => trade('buy');
-document.getElementById('sell').onclick = () => trade('sell');
-
+// Trade com SOM GARANTIDO
 function trade(tipo) {
   const valor = parseFloat(document.getElementById('amount').value || 0);
   if (valor < 10) return alert('Mínimo $10');
-  if (!currentPrice) return alert('Aguarde carregar...');
+  const preco = candles[candles.length-1]?.c || 0;
+  if (!preco) return alert('Aguarde o preço carregar');
 
-  const qty = (valor / currentPrice).toFixed(6);
+  const qty = (valor / preco).toFixed(6);
   balance += tipo === 'buy' ? -valor : valor;
 
-  // TOCA O SOM!
-  if (tipo === 'buy') buySound.play();
-  else sellSound.play();
+  // SOM GARANTIDO
+  (tipo === 'buy' ? buySound : sellSound).play().catch(() => console.log("Som bloqueado (clique na tela primeiro)"));
 
-  trades.push({ 
-    tipo: tipo.toUpperCase(), 
-    qty, 
-    preco: currentPrice.toFixed(2), 
-    valor, 
-    time: new Date().toLocaleTimeString() 
-  });
-
+  trades.push({ tipo: tipo.toUpperCase(), qty, preco: preco.toFixed(2), valor, time: new Date().toLocaleTimeString() });
   document.getElementById('balance').textContent = `Saldo: $${balance.toFixed(2)}`;
   updateTrades();
 }
 
 function updateTrades() {
-  document.getElementById('trades').innerHTML = trades.slice(-10).reverse().map(t => 
-    `<li style="color:${t.tipo==='BUY'?'#00ff9d':'#ff006e'}">
-      <strong>${t.tipo}</strong> ${t.qty} ${currentSymbol.replace('USDT','')} @ $${t.preco}
+  document.getElementById('trades').innerHTML = trades.slice(-10).reverse().map(t =>
+    `<li style="color:${t.tipo==='BUY'?'#00ff9d':'#ff006e'};padding:10px 0">
+      <strong>${t.tipo}</strong> ${t.qty} ${currentSymbol.replace('USDT','')} @ $${t.preco} → $${t.valor}
     </li>`
   ).join('');
 }
 
-// TROCA DE CRIPTO
+document.getElementById('buy').onclick = () => trade('buy');
+document.getElementById('sell').onclick = () => trade('sell');
+
 document.getElementById('symbol').onchange = (e) => {
   currentSymbol = e.target.value;
   candles = [];
   loadData();
-  startTickerWebSocket();
-  startKlineWebSocket();
+  startTicker();
+  startKline();
 };
 
-// INICIA TUDO
+// Primeiro clique libera o som (obrigatório em navegadores)
+document.body.addEventListener('click', () => {}, { once: true });
+
+// INICIA
 loadData();
-startTickerWebSocket();   // ← preço em segundo a segundo
-startKlineWebSocket();    // ← velas novas
+startTicker();
+startKline();
