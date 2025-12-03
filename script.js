@@ -1,4 +1,4 @@
-const POLYGON_API_KEY = 'SUA_CHAVE_POLYGON_AQUI'; // Cadastre em polygon.io
+const POLYGON_API_KEY = '0_U9BxlbmtxpZEnSKaZ2XCTJM8AcLy5b'; // Cadastre em polygon.io
 
 const chart = LightweightCharts.createChart(document.getElementById('chart'), {
   layout: { background: { type: 'solid', color: '#0e0e0e' }, textColor: '#d1d4dc' },
