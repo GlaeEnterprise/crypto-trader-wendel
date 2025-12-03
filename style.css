@@ -1,0 +1,23 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: Arial, sans-serif; background: #0f1620; color: #fff; }
+.container { max-width: 1200px; margin: 20px auto; padding: 20px; }
+
+h1 { text-align:center; margin-bottom:20px; color:#00ff9d; }
+
+.controls {
+  display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+  justify-content: center; align-items: center;
+}
+select, input, button {
+  padding: 12px; font-size: 16px; border: none; border-radius: 8px;
+}
+select, input { background:#1e293b; color:white; }
+#buy { background:#00ff9d; color:black; font-weight:bold; cursor:pointer; }
+#sell { background:#ff006e; color:white; font-weight:bold; cursor:pointer; }
+
+#chart { height: 500px; background:#1e293b; border-radius:12px; margin-bottom:20px; }
+
+.history { background:#1e293b; padding:20px; border-radius:12px; }
+#trades { list-style:none; }
+#trades li { padding:8px 0; border-bottom:1px solid #334155; }
+#balance { font-size:20px; font-weight:bold; margin-top:15px; color:#00ff9d; }
